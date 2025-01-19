@@ -9,9 +9,9 @@ import numpy as np
 import torchmetrics
 from datetime import datetime
 import pandas as pd
-from lib.custom_model import NeuralNetwork
-from lib.data_prep import data_transformation_pipeline, data_loader
-from lib.utils import load_pretrained_model
+from custom_lib.custom_model import NeuralNetwork
+from custom_lib.data_prep import data_transformation_pipeline, data_loader
+from custom_lib.utils import load_pretrained_model
 import time
 import argparse
 

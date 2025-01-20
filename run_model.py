@@ -180,7 +180,7 @@ def train_and_evaluate(
             "model_id": [f"{model_name}_{timestamp}"],
             "model": [model_name],
             "epochs": [epochs],  
-            "run_time": [run_time],  
+            "run_time": [run_time / 60],  
             "test_loss": [test_metrics[0]],
             "test_acc": [test_metrics[1]],
             "lr": [lr],

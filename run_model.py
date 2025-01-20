@@ -163,26 +163,42 @@ def train_and_evaluate(
             file.write(f"Model Structure:\n{model}\n")
             file.write(f"Using {device} device\n")
 
-        # Save training results to CSV
-        results_df = pd.DataFrame(
-            [
-                {
-                    "model_id": f"{model_name}_{timestamp}",
-                    "model": model_name,
-                    "epochs": epochs,
-                    "run_time": run_time / 60,
-                    "test_loss": test_metrics[0],
-                    "test_acc": test_metrics[1],
-                    "lr": lr,
-                    "image_size": image_size,
-                    "rotate_angle": rotate_angle,
-                    "horizontal_flip_prob": horizontal_flip_prob,
-                    "gaussian_blur": gaussian_blur,
-                    "normalize": normalize,
-                }
-            ]
-        )
-        results_df.to_csv(f"{results_dir}/test_results.csv", index=False)
+ # Check if the CSV file exists
+        if os.path.exists("results/test_results.csv"):
+            # Read the existing CSV file into a DataFrame
+            test_results_df = pd.read_csv("results/test_results.csv")
+        else:
+            # If the file doesn't exist, create an empty DataFrame or initialize with test output columns
+            test_results_df = pd.DataFrame(columns=[
+            "model_id", "model", "epochs", "run_time", "test_loss", "test_acc", "lr", 
+            "image_size", "rotate_angle", "horizontal_flip_prob", 
+            "gaussian_blur", "normalize"
+            ])
+
+        # Create a dictionary for the new results
+        new_results_dict = {
+            "model_id": [f"{model_name}_{timestamp}"],
+            "model": [model_name],
+            "epochs": [epochs],  
+            "run_time": [run_time],  
+            "test_loss": [test_metrics[0]],
+            "test_acc": [test_metrics[1]],
+            "lr": [lr],
+            "image_size": [image_size],  
+            "rotate_angle": [rotate_angle],  
+            "horizontal_flip_prob": [horizontal_flip_prob],  
+            "gaussian_blur": [gaussian_blur],  
+            "normalize": [normalize]  
+        }
+
+
+        new_rows_df = pd.DataFrame(new_results_dict)
+
+        test_results_df = pd.concat([test_results_df, new_rows_df], ignore_index=True).fillna(value='None')
+
+
+        test_results_df.to_csv("results/test_results.csv", index=False)
+
 
     return history
 

@@ -52,7 +52,8 @@ def data_transformation_pipeline(
     return Compose(transform_steps)
 
 
-def data_loader(data_dir, train_transform, val_transform, test_transform, batch_size=32, train_prop=0.8, val_prop=0.1, num_workers=4):
+def data_loader(data_dir, train_transform, val_transform, test_transform, seed, 
+                batch_size=32, train_prop=0.8, val_prop=0.1, num_workers=4):
     """
     Creates train, validation, and test DataLoaders from a dataset.
 
@@ -89,7 +90,7 @@ def data_loader(data_dir, train_transform, val_transform, test_transform, batch_
         raise ValueError("Dataset is too small for the specified split proportions.")
 
     # Set seed for reproducibility
-    torch.manual_seed(42)
+    torch.manual_seed(seed)
 
     # Split the dataset
     trainset, valset, testset = random_split(data, [train_size, val_size, test_size])

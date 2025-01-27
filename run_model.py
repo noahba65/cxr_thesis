@@ -9,7 +9,7 @@ import numpy as np
 import torchmetrics
 from datetime import datetime
 import pandas as pd
-from custom_lib.custom_model import NeuralNetwork
+from custom_lib.custom_models.basic_nn import NeuralNetwork
 from custom_lib.data_prep import data_transformation_pipeline, data_loader
 from custom_lib.utils import load_pretrained_model
 import time
@@ -32,6 +32,7 @@ def arg_parser():
         --horizontal_flip_prob (float): Probability of horizontal flip for augmentation (default: 0.5).
         --gaussian_blur (float): Gaussian blur kernel size for augmentation (default: None).
         --normalize (bool): Normalize image pixel values if set to True (default: False).
+        --seed (int): Set the seed used for data splitting
     """
     # Set up the argument parser
     parser = argparse.ArgumentParser(description='Image classification')
@@ -42,6 +43,7 @@ def arg_parser():
     parser.add_argument('--save_logs', type=bool, default=True, help='Save logs to the results folder if set to True.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate for training.')
     parser.add_argument('--image_size', type=int, default=224, help='Image size in pixels (width and height).')
+    parser.add_argument('--seed', type=int, default=42, help='Sets seed for model scaling.')
 
     # Data augmentation-related arguments
     parser.add_argument('--rotate_angle', type=float, default=0, help='Maximum rotation angle for image augmentation.')
@@ -62,6 +64,7 @@ def train_and_evaluate(
     save_logs,
     epochs,
     lr,
+    seed,
     image_size,
     rotate_angle=None,
     horizontal_flip_prob=None,
@@ -109,9 +112,39 @@ def train_and_evaluate(
         train_transform=train_transform,
         test_transform=test_transform,
         val_transform=val_transform,
+        seed = seed
     )
 
-    model = load_pretrained_model(model_name)
+    # If Else statement to determine if the user has passed a custom model or a prebuilt model.
+    # If the model_name contains the word custom, the code extracts the version letter and number
+    # and passes the proper configuration to the model
+    if ("custom" in model_name):
+        from custom_lib.custom_models.custom_eff_net import define_custom_eff_net
+        import re
+
+        efficient_net_config = {
+            # tuple of width multiplier, depth multiplier, resolution, and Survival Prob for
+            # each efficientnet version
+            "b0" : (1.0, 1.0, 224, 0.2),
+            "b1" : (1.0, 1.1, 240, 0.2),
+            "b2" : (1.1, 1.2, 260, 0.3),
+            "b3" : (1.2, 1.4, 300, 0.3),
+            "b4" : (1.4, 1.8, 380, 0.4),
+            "b5" : (1.6, 2.2, 456, 0.4),
+            "b6" : (1.8, 2.6, 528, 0.5),
+            "b7" : (2.0, 3.1, 600, 0.5)
+        }
+
+        model = define_custom_eff_net(efficient_net_config=efficient_net_config, num_classes=num_classes, model_name=model_name, device=device)
+
+    else:
+        model_class = getattr(models, model_name, None)
+
+        if model_class is None:
+            raise ValueError(f"Model '{model_name}' is not available in torchvision.models.")
+
+        # Initialize the model
+        model = model_class(pretrained=True)
 
     # Wrap the model with Poutyne
     poutyne_model = Model(
@@ -172,7 +205,7 @@ def train_and_evaluate(
             test_results_df = pd.DataFrame(columns=[
             "model_id", "model", "epochs", "run_time", "test_loss", "test_acc", "lr", 
             "image_size", "rotate_angle", "horizontal_flip_prob", 
-            "gaussian_blur", "normalize"
+            "gaussian_blur", "normalize", "seed"
             ])
 
         # Create a dictionary for the new results
@@ -188,7 +221,8 @@ def train_and_evaluate(
             "rotate_angle": [rotate_angle],  
             "horizontal_flip_prob": [horizontal_flip_prob],  
             "gaussian_blur": [gaussian_blur],  
-            "normalize": [normalize]  
+            "normalize": [normalize]  ,
+            "seed": [seed]
         }
 
 
@@ -198,6 +232,18 @@ def train_and_evaluate(
 
 
         test_results_df.to_csv("results/test_results.csv", index=False)
+        
+        # Plot the training history
+        plot_history(
+            history,
+            metrics=['loss', 'acc'],
+            labels=['Loss', 'Accuracy'],
+            titles=f"{model_name} Training",
+            save=True,  
+            save_filename_template='{metric}_plot',  # Template for filenames
+            save_directory=results_dir,  # Directory to save plots
+            save_extensions=('png',)  # File extension(s)
+        ) 
 
 
     return history
@@ -219,5 +265,6 @@ if __name__ == "__main__":
         horizontal_flip_prob=args.horizontal_flip_prob,
         gaussian_blur=args.gaussian_blur,
         normalize=args.normalize,
+        seed = args.seed
     )
 

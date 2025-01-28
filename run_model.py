@@ -33,6 +33,7 @@ def arg_parser():
         --gaussian_blur (float): Gaussian blur kernel size for augmentation (default: None).
         --normalize (bool): Normalize image pixel values if set to True (default: False).
         --seed (int): Set the seed used for data splitting
+        --batch_metrics (str): Sets batch metrics such as 'accuracy' or 'loss'
     """
     # Set up the argument parser
     parser = argparse.ArgumentParser(description='Image classification')
@@ -44,11 +45,13 @@ def arg_parser():
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate for training.')
     parser.add_argument('--image_size', type=int, default=224, help='Image size in pixels (width and height).')
     parser.add_argument('--seed', type=int, default=42, help='Sets seed for model scaling.')
+    parser.add_argument('--batch_metrics', default="loss", help="Sets batch metrics such as 'accuracy' or 'loss'")
 
     # Data augmentation-related arguments
     parser.add_argument('--rotate_angle', type=float, default=0, help='Maximum rotation angle for image augmentation.')
     parser.add_argument('--horizontal_flip_prob', type=float, default=None, help='Probability of horizontal flip for augmentation.')
     parser.add_argument('--gaussian_blur', type=float, default=None, help='Gaussian blur kernel size for augmentation. Leave as None for no blur.')
+
 
     # Normalization argument
     parser.add_argument('--normalize', type=bool, default=False, help='Normalize image pixel values if set to True.')
@@ -66,10 +69,11 @@ def train_and_evaluate(
     lr,
     seed,
     image_size,
+    batch_metrics,
     rotate_angle=None,
     horizontal_flip_prob=None,
     gaussian_blur=None,
-    normalize=False
+    normalize=False,
 ):
     # Set device
     device = (
@@ -138,13 +142,8 @@ def train_and_evaluate(
         model = define_custom_eff_net(efficient_net_config=efficient_net_config, num_classes=num_classes, model_name=model_name, device=device)
 
     else:
-        model_class = getattr(models, model_name, None)
-
-        if model_class is None:
-            raise ValueError(f"Model '{model_name}' is not available in torchvision.models.")
-
         # Initialize the model
-        model = model_class(pretrained=True)
+        model = load_pretrained_model(model_name)
 
     # Wrap the model with Poutyne
     poutyne_model = Model(
@@ -222,7 +221,8 @@ def train_and_evaluate(
             "horizontal_flip_prob": [horizontal_flip_prob],  
             "gaussian_blur": [gaussian_blur],  
             "normalize": [normalize]  ,
-            "seed": [seed]
+            "seed": [seed],
+            "batch_metrics": [batch_metrics]
         }
 
 
@@ -265,6 +265,7 @@ if __name__ == "__main__":
         horizontal_flip_prob=args.horizontal_flip_prob,
         gaussian_blur=args.gaussian_blur,
         normalize=args.normalize,
-        seed = args.seed
+        seed = args.seed,
+        batch_metrics=args.batch_metrics
     )
 

@@ -77,6 +77,21 @@ class ConvBnAct(nn.Module):
         
         return x
     
+
+class SpatialSeparableConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
+        super(SpatialSeparableConv2d, self).__init__()
+
+        # Create two 1D convolutions for spatial separation
+        self.conv1 = nn.Conv2d(in_channels, in_channels, (kernel_size[0], 1), 
+                                stride=(stride[0], 1), padding=(padding[0], 0), bias=bias)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, (1, kernel_size[1]), 
+                                stride=(1, stride[1]), padding=(0, padding[1]), bias=bias)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x
 #------------------------------------------------------------------------------
 
 ''' Squeeze and Excitation Block '''
@@ -143,10 +158,30 @@ class MBConvN(nn.Module):
         reduced_dim = int(n_in//reduction)
         
         self.expand = nn.Identity() if (expansion_factor == 1) else ConvBnAct(n_in, intermediate_channels, kernel_size = 1)
+        
         self.depthwise_conv = ConvBnAct(intermediate_channels, intermediate_channels,
                                         kernel_size = kernel_size, stride = stride, 
                                         padding = padding, groups = intermediate_channels
                                        )
+        
+        # self.conv1k = ConvBnAct(intermediate_channels, intermediate_channels,
+        #                                  kernel_size = (1, kernel_size), stride = stride, 
+        #                                  padding = 0
+        #                                  #groups = intermediate_channels
+        #                                 )
+        # self.convk1 = ConvBnAct(intermediate_channels, intermediate_channels,
+        #                             kernel_size = (kernel_size, 1), 
+        #                             stride = stride,
+        #                             padding = padding
+        #                             #groups = intermediate_channels
+        #                         )
+
+        self.conv1k = nn.Conv2d(intermediate_channels, intermediate_channels, (kernel_size, 1), 
+                                stride=(stride, 1), padding=(padding, 0), bias=True)
+        self.convk1 = nn.Conv2d(intermediate_channels, intermediate_channels, (1, kernel_size), 
+                                stride=(1, stride), padding=(0, padding), bias=True)
+
+
         self.se = SqueezeExcitation(intermediate_channels, reduced_dim = reduced_dim)
         self.pointwise_conv = ConvBnAct(intermediate_channels, n_out, 
                                         kernel_size = 1, act = False
@@ -156,12 +191,33 @@ class MBConvN(nn.Module):
     def forward(self, x):
         
         residual = x
+
+        # print("residual", x.shape)
+
         
         x = self.expand(x)
-        x = self.depthwise_conv(x)
+
+        # print("self.expand", x.shape)
+
+        # x = self.depthwise_conv(x)
+        # print("self.depthwise_conv", x.shape)
+
+        x = self.conv1k(x)
+        
+        # print("self.conv1k", x.shape)
+
+        x = self.convk1(x)
+
+        # print("self.convk1", x.shape)
+
         x = self.se(x)
+
+        # print("self.se", x.shape)
+
         x = self.pointwise_conv(x)
         
+        # print("self.pointwise_conv", x.shape)
+
         if self.skip_connection:
             x = self.drop_layers(x)
             x += residual

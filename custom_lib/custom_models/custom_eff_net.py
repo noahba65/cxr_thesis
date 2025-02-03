@@ -153,7 +153,7 @@ class StochasticDepth(nn.Module):
 
 class MBConvN(nn.Module):
     
-    def __init__(self, n_in, n_out, kernel_size = 3, 
+    def __init__(self, n_in, n_out, kernel_size = 6, 
                  stride = 1, expansion_factor = 6,
                  reduction = 4, # Squeeze and Excitation Block
                  survival_prob = 0.8 # Stochastic Depth
@@ -188,6 +188,9 @@ class MBConvN(nn.Module):
                                        )
         self.drop_layers = StochasticDepth(survival_prob = survival_prob)
 
+        self.batch_norm = nn.BatchNorm2d(intermediate_channels) 
+        self.activation = nn.SiLU() 
+
         
         
     def forward(self, x):
@@ -201,19 +204,18 @@ class MBConvN(nn.Module):
 
         # print("self.expand", x.shape)
 
+        
         x = self.depthwise_conv(x)
 
         # print("self.depthwise_conv", x.shape)
-        
-        x = self.convk1(x)
-        
-        # # print("self.convka", x.shape)
 
         x = self.conv1k(x)
 
-        # x = self.depthwise_conv(x)
+        # # # print("self.conv1k", x.shape)
 
-        # # print("self.conv1k", x.shape)
+        x = self.convk1(x)
+        
+        # # # print("self.convk1", x.shape)
 
         # x = self.batch_norm(x)
 
@@ -269,11 +271,18 @@ class customEfficientNet(nn.Module):
         layers = [ConvBnAct(3, channels, kernel_size = 3, stride = 2, padding = 1)]
         in_channels = channels
         
-        kernels = [3, 3, 5, 3, 5, 5, 3]
+        # kernels = [3, 3, 5, 3, 5, 5, 3]
+        # expansions = [1, 6, 6, 6, 6, 6, 6]
+        # num_channels = [16, 24, 40, 80, 112, 192, 320]
+        # num_layers = [1, 2, 2, 3, 3, 4, 1]
+        # strides =[1, 2, 2, 2, 1, 2, 1]
+
+
+        kernels = [5, 3, 5, 7, 5, 7, 3]
         expansions = [1, 6, 6, 6, 6, 6, 6]
         num_channels = [16, 24, 40, 80, 112, 192, 320]
         num_layers = [1, 2, 2, 3, 3, 4, 1]
-        strides =[1, 2, 2, 2, 1, 2, 1]
+        strides = [1, 2, 2, 2, 1, 2, 1]
         
         # Scale channels and num_layers according to width and depth multipliers.
         scaled_num_channels = [4*ceil(int(c*width_mult) / 4) for c in num_channels]

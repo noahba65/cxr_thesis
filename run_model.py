@@ -40,6 +40,7 @@ def arg_parser():
 
     # Model and training-related arguments
     parser.add_argument('--model_name', default='efficientnet_b0', help='Model name from torch.models. More info at https://pytorch.org/vision/0.9/models.html')
+    parser.add_argument('--truncated', default=False, type = bool, help='Boolean to set if you want a truncated efficientnetb0')
     parser.add_argument('--epochs', default=15, type=int, help='Number of epochs for training.')
     parser.add_argument('--save_logs', type=bool, default=True, help='Save logs to the results folder if set to True.')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate for training.')
@@ -70,10 +71,11 @@ def train_and_evaluate(
     seed,
     image_size,
     batch_metrics,
+    truncated,
     rotate_angle=None,
     horizontal_flip_prob=None,
     gaussian_blur=None,
-    normalize=False,
+    normalize=False
 ):
     # Set device
     device = (
@@ -140,6 +142,33 @@ def train_and_evaluate(
         }
 
         model = define_custom_eff_net(efficient_net_config=efficient_net_config, num_classes=num_classes, model_name=model_name, device=device)
+
+    if truncated:
+        import torchvision.models as models
+
+        # Load EfficientNet-B0
+        efficientnet = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
+
+    # Truncate the model (keeping only first 6 layers)
+        truncated_model = nn.Sequential(*list(efficientnet.features.children())[:6])
+
+        # Define a new classification head
+        class CustomModel(nn.Module):
+            def __init__(self, backbone, num_classes):
+                super(CustomModel, self).__init__()
+                self.backbone = backbone  # Truncated EfficientNet
+                self.global_avg_pool = nn.AdaptiveAvgPool2d(1)  # Pool to (batch, channels, 1, 1)
+                self.fc = nn.Linear(112, num_classes)  # Fully connected layer
+
+            def forward(self, x):
+                x = self.backbone(x)  # Extract features
+                x = self.global_avg_pool(x)  # Pooling
+                x = x.view(x.shape[0], -1)  # Flatten
+                x = self.fc(x)  # Classification
+                return x
+
+        # Instantiate the model with the truncated backbone
+        model = CustomModel(truncated_model, num_classes)
 
     else:
         # Initialize the model
@@ -266,6 +295,7 @@ if __name__ == "__main__":
         gaussian_blur=args.gaussian_blur,
         normalize=args.normalize,
         seed = args.seed,
-        batch_metrics=args.batch_metrics
+        batch_metrics=args.batch_metrics,
+        truncated=args.truncated
     )
 

@@ -1,2 +1,0 @@
-model_id,model,epochs,run_time,test_loss,test_acc,lr,image_size,rotate_angle,horizontal_flip_prob,gaussian_blur,normalize
-vgg19_2025-01-19_20-58,vgg19,15,51.1232547044754,1.3647998397131325,34.54075032341527,0.001,224,0,,,True

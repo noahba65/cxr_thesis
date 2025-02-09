@@ -29,8 +29,9 @@ data/
 .DS_store
 myenv/
 *.pth
-data_3_class
-data_4_class
+data_3_class/
+data_4_class/
+data_2_class/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

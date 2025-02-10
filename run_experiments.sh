@@ -4,31 +4,36 @@
 MODEL_NAME="b0"  # Change this to the desired model
 
 # Loop through truncated layers (0 to 5)
-for TRUNCATED_LAYERS in {0..5}
-do
-    # Loop through pretrained options (true and false)
-    for PRETRAINED in False
-    do
+for TRUNCATED_LAYERS in {0..5}; do
+    # Loop over two cases: with and without --pretrained
+    for PRETRAINED in true false; do
+        
         echo "Running experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED"
 
-        # Run the Python script with the current parameters
-        python run_model.py \
-            --model_name "$MODEL_NAME" \
-            --truncated_layers "$TRUNCATED_LAYERS" \
-            --pretrained $PRETRAINED \
+        # Define the results directory based on whether pretrained is used
+        if [ "$PRETRAINED" = true ]; then
+            RESULTS_DIR="2_class_results/pretrained"
+            CMD="python run_model.py --pretrained"
+        else
+            RESULTS_DIR="2_class_results/not_pretrained"
+            CMD="python run_model.py"
+        fi
+
+        # Append other parameters
+        CMD="$CMD \
+            --model_name \"$MODEL_NAME\" \
+            --truncated_layers \"$TRUNCATED_LAYERS\" \
             --save_logs  \
             --epochs 40 \
-            --data_dir "test_2_clxass" \
+            --data_dir \"data_2_class\" \
             --batch_size 32 \
             --lr .001 \
-            --results_folder_name "2_class_results" \
+            --results_folder_name \"$RESULTS_DIR\" \
             --bootstrap_n 200 \
-            --data_dir "data_2_class" \
-            --normalize True 
-            
-        
+            --normalize"
 
-
+        # Execute the command
+        eval $CMD
 
         echo "Experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED completed."
         echo "--------------------------------------------------"

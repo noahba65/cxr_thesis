@@ -12,10 +12,10 @@ for TRUNCATED_LAYERS in {0..5}; do
 
         # Define the results directory based on whether pretrained is used
         if [ "$PRETRAINED" = true ]; then
-            RESULTS_DIR="2_class_results/pretrained"
+            RESULTS_DIR="3_class_results_lr_sch/pretrained"
             CMD="python run_model.py --pretrained"
         else
-            RESULTS_DIR="2_class_results/not_pretrained"
+            RESULTS_DIR="3_class_results_lr_sch/not_pretrained"
             CMD="python run_model.py"
         fi
 
@@ -25,7 +25,7 @@ for TRUNCATED_LAYERS in {0..5}; do
             --truncated_layers \"$TRUNCATED_LAYERS\" \
             --save_logs  \
             --epochs 40 \
-            --data_dir \"data_2_class\" \
+            --data_dir \"data_3_class\" \
             --batch_size 32 \
             --lr .001 \
             --results_folder_name \"$RESULTS_DIR\" \

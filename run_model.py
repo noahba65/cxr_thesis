@@ -11,7 +11,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 from torch.utils.data import DataLoader, Subset
 from thop import profile
 import argparse
-from poutyne import Model, CSVLogger, ModelCheckpoint, EarlyStopping, plot_history
+from poutyne import Model, CSVLogger, ModelCheckpoint, EarlyStopping, plot_history, ReduceLROnPlateau, Callback
 from custom_lib.data_prep import data_transformation_pipeline, data_loader
 
 # Define the model mapping as a constant (outside the function)
@@ -42,24 +42,38 @@ def load_efficientnet(model_name, model_mapping, pretrained, seed):
 class TruncatedEffNet(nn.Module):
     def __init__(self, effnet, num_classes, removed_layers, batch_size, image_size):
         super(TruncatedEffNet, self).__init__()
+
+        # Truncate the EfficientNet backbone
         layers = 7 - removed_layers
         self.effnet_truncated = nn.Sequential(*list(effnet.features.children())[:layers])
+
+        # Global average pooling
         self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
 
-        with torch.no_grad():
-            dummy_input = torch.randn(batch_size, 3, image_size, image_size)
+        # Dynamically calculate the input size for the fully connected layer
+        with torch.no_grad():  # Disable gradient tracking for this forward pass
+            dummy_input = torch.randn(batch_size, 3, image_size, image_size)  # Example input (batch_size=1, channels=3, height=224, width=224)
             dummy_output = self.effnet_truncated(dummy_input)
             dummy_output = self.global_avg_pool(dummy_output)
-            fc_input_size = dummy_output.view(dummy_output.size(0), -1).size(1)
+            fc_input_size = dummy_output.view(dummy_output.size(0), -1).size(1)  # Flatten and get the size
+        
+        self.dropout = nn.Dropout(.2)
 
+        # Define the fully connected layer
         self.fc = nn.Linear(fc_input_size, num_classes)
 
+        self.classifier = nn.Sequential(
+            nn.Dropout(.2),
+            nn.Linear(fc_input_size, num_classes)
+                )
+
     def forward(self, x):
-        x = self.effnet_truncated(x)
-        x = self.global_avg_pool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
+        x = self.effnet_truncated(x)  # Extract features
+        x = self.global_avg_pool(x)  # Pooling
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.classifier(x)  # Classification
         return x
+
 
 def bootstrap_evaluation_poutyne(model, test_loader, save_logs, results_dir, n_bootstraps=1000, seed=42):
     """
@@ -145,6 +159,13 @@ def bootstrap_evaluation_poutyne(model, test_loader, save_logs, results_dir, n_b
 
     return results_df
 
+class PrintLRSchedulerCallback(Callback):
+    def set_model(self, model):
+        self.model = model  # Store the model reference
+
+    def on_epoch_end(self, epoch, logs):
+        lr = self.model.optimizer.param_groups[0]['lr']
+        print(f"Epoch {epoch + 1}: Current LR = {lr}")
 
 def main(args):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
@@ -203,7 +224,17 @@ def main(args):
         callbacks.extend([
             ModelCheckpoint(f"{results_dir}/best_model.pth", monitor='val_loss', mode='min', save_best_only=True),
             CSVLogger(f"{results_dir}/training_logs.csv"),
-        ])
+            ReduceLROnPlateau(
+                        monitor='val_loss',  # Monitor validation loss
+                        factor=0.1,          # Reduce LR by a factor of 0.1
+                        patience=5          # Wait 5 epochs before reducing LR
+                                            ),
+            PrintLRSchedulerCallback()
+            # EarlyStopping(monitor = 'val_loss', patience = 5)
+            
+                        ])
+
+        
 
     start_time = time.time()
     history = poutyne_model.fit_generator(train_loader, val_loader, epochs=args.epochs, callbacks=callbacks)
@@ -211,6 +242,24 @@ def main(args):
     run_time = end_time - start_time
 
     print(f"Model training took {run_time / 60} minutes")
+
+    if args.save_logs:
+        best_model_path = f"{results_dir}/best_model.pth"
+        
+        # Load the state dict into the model
+        poutyne_model.network.load_state_dict(torch.load(best_model_path))
+
+        # Plot training history
+        plot_history(
+            history,
+            metrics=['loss', 'acc'],
+            labels=['Loss', 'Accuracy'],
+            titles=f"{args.model_name} Training",
+            save=True,
+            save_filename_template='{metric}_plot',
+            save_directory=results_dir,
+            save_extensions=('png',)
+        )
 
     # Bootstrap evaluation
     print("Starting Bootstrapping")
@@ -256,17 +305,6 @@ def main(args):
         test_results_df = pd.concat([test_results_df, new_results_df], ignore_index=True)
         test_results_df.to_csv(f"{args.results_folder_name}/test_results.csv", index=False)
 
-        # Plot training history
-        plot_history(
-            history,
-            metrics=['loss', 'acc'],
-            labels=['Loss', 'Accuracy'],
-            titles=f"{args.model_name} Training",
-            save=True,
-            save_filename_template='{metric}_plot',
-            save_directory=results_dir,
-            save_extensions=('png',)
-        )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a truncated EfficientNet model.")

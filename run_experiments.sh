@@ -12,28 +12,30 @@ for TRUNCATED_LAYERS in {0..5}; do
 
         # Define the results directory based on whether pretrained is used
         if [ "$PRETRAINED" = true ]; then
-            RESULTS_DIR="3_class_results_lr_sch/pretrained"
-            CMD="python run_model.py --pretrained"
+            RESULTS_DIR="3_class_results/pretrained"
+            CMD=("python" "run_model.py" "--pretrained")
         else
-            RESULTS_DIR="3_class_results_lr_sch/not_pretrained"
-            CMD="python run_model.py"
+            RESULTS_DIR="3_class_results/not_pretrained"
+            CMD=("python" "run_model.py")
         fi
 
         # Append other parameters
-        CMD="$CMD \
-            --model_name \"$MODEL_NAME\" \
-            --truncated_layers \"$TRUNCATED_LAYERS\" \
-            --save_logs  \
-            --epochs 40 \
-            --data_dir \"data_3_class\" \
-            --batch_size 32 \
-            --lr .001 \
-            --results_folder_name \"$RESULTS_DIR\" \
-            --bootstrap_n 200 \
-            --normalize"
+        CMD+=(
+            "--model_name" "$MODEL_NAME"
+            "--truncated_layers" "$TRUNCATED_LAYERS"
+            "--save_logs"
+            "--epochs" "40"
+            "--data_dir" "data_3_class"
+            "--batch_size" "32"
+            "--lr" ".001"
+            "--results_folder_name" "$RESULTS_DIR"
+            "--bootstrap_n" "200"
+            "--normalize"
+            "--seed" "42"
+        )
 
         # Execute the command
-        eval $CMD
+        "${CMD[@]}"
 
         echo "Experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED completed."
         echo "--------------------------------------------------"

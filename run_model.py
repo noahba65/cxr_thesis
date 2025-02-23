@@ -14,6 +14,8 @@ import argparse
 from poutyne import Model, CSVLogger, ModelCheckpoint, EarlyStopping, plot_history, ReduceLROnPlateau, Callback
 from custom_lib.data_prep import data_transformation_pipeline, data_loader
 
+
+
 # Define the model mapping as a constant (outside the function)
 MODEL_MAPPING = {
     "b0": ("efficientnet_b0", models.EfficientNet_B0_Weights.IMAGENET1K_V1),
@@ -171,6 +173,10 @@ def main(args):
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     print(f"Using {device} device")
 
+
+    torch.manual_seed(args.seed)
+
+
     try:
         effnet = load_efficientnet(args.model_name, MODEL_MAPPING, args.pretrained, args.seed)
         print(f"Successfully loaded EfficientNet {args.model_name}.")
@@ -180,27 +186,36 @@ def main(args):
 
     image_size = {"b0": 224, "b1": 240, "b2": 260, "b3": 300}[args.model_name]
 
-    train_transform = data_transformation_pipeline(image_size=image_size, rotate_angle=args.rotate_angle,
+    train_transform = data_transformation_pipeline(image_size=image_size, 
+                                                   rotate_angle=args.rotate_angle,
                                                    horizontal_flip_prob=args.horizontal_flip_prob,
-                                                   gaussian_blur=args.gaussian_blur, normalize=args.normalize,
+                                                   gaussian_blur=args.gaussian_blur,
+                                                   normalize=args.normalize,
                                                    is_train=True)
-    test_transform = data_transformation_pipeline(image_size=image_size, rotate_angle=args.rotate_angle,
+    test_transform = data_transformation_pipeline(image_size=image_size, 
+                                                  rotate_angle=args.rotate_angle,
                                                   horizontal_flip_prob=args.horizontal_flip_prob,
-                                                  gaussian_blur=args.gaussian_blur, normalize=args.normalize,
+                                                  gaussian_blur=args.gaussian_blur, 
+                                                  normalize=args.normalize,
                                                   is_train=False)
-    val_transform = data_transformation_pipeline(image_size=image_size, rotate_angle=args.rotate_angle,
+    val_transform = data_transformation_pipeline(image_size=image_size, 
+                                                 rotate_angle=args.rotate_angle,
                                                  horizontal_flip_prob=args.horizontal_flip_prob,
-                                                 gaussian_blur=args.gaussian_blur, normalize=args.normalize,
+                                                 gaussian_blur=args.gaussian_blur, 
+                                                 normalize=args.normalize,
                                                  is_train=False)
 
-    train_loader, val_loader, test_loader, num_classes = data_loader(args.data_dir, train_transform=train_transform,
-                                                                    test_transform=test_transform,
-                                                                    val_transform=val_transform, seed=args.seed,
-                                                                    batch_size=args.batch_size)
+    train_loader, val_loader, test_loader, num_classes = data_loader(args.data_dir, 
+                                                                     train_transform=train_transform,
+                                                                     test_transform=test_transform,
+                                                                     val_transform=val_transform, 
+                                                                     seed=args.seed,
+                                                                     batch_size=args.batch_size,
+                                                                     train_prop=.9,
+                                                                     val_prop=.05)
 
     model = TruncatedEffNet(effnet, num_classes, removed_layers=args.truncated_layers, batch_size=args.batch_size,
                             image_size=image_size)
-    model.to(device)
 
     if args.save_logs:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -219,17 +234,18 @@ def main(args):
         device=device
     )
 
-    callbacks = []
-    if args.save_logs:
-        callbacks.extend([
-            ModelCheckpoint(f"{results_dir}/best_model.pth", monitor='val_loss', mode='min', save_best_only=True),
-            CSVLogger(f"{results_dir}/training_logs.csv"),
-            ReduceLROnPlateau(
+    callbacks = [ReduceLROnPlateau(
                         monitor='val_loss',  # Monitor validation loss
                         factor=0.1,          # Reduce LR by a factor of 0.1
                         patience=5          # Wait 5 epochs before reducing LR
                                             ),
-            PrintLRSchedulerCallback()
+                PrintLRSchedulerCallback()]
+    
+    if args.save_logs:
+        callbacks.extend([
+            ModelCheckpoint(f"{results_dir}/best_model.pth", monitor='val_loss', mode='min', save_best_only=True),
+            CSVLogger(f"{results_dir}/training_logs.csv")
+   
             # EarlyStopping(monitor = 'val_loss', patience = 5)
             
                         ])
@@ -308,7 +324,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a truncated EfficientNet model.")
-    parser.add_argument("--data_dir", type=str, default="data_2_class", help="Directory containing the dataset.")
+    parser.add_argument("--data_dir", type=str, help="Directory containing the dataset.")
     parser.add_argument("--model_name", type=str, default="b0", choices=["b0", "b1", "b2", "b3"], help="EfficientNet model variant.")
     parser.add_argument("--pretrained", action="store_true", help="Use pretrained weights.")
     parser.add_argument("--epochs", type=int, default=40, help="Number of training epochs.")
@@ -318,10 +334,10 @@ if __name__ == "__main__":
     parser.add_argument("--horizontal_flip_prob", type=float, default=None, help="Probability of horizontal flip for data augmentation.")
     parser.add_argument("--gaussian_blur", type=float, default=None, help="Gaussian blur for data augmentation.")
     parser.add_argument("--normalize", action="store_true", help="Normalize the data.")
-    parser.add_argument("--seed", type=int, default=39, help="Random seed.")
-    parser.add_argument("--truncated_layers", type=int, default=2, help="Number of layers to truncate from EfficientNet.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed.")
+    parser.add_argument("--truncated_layers", default=0, help="Number of layers to truncate from EfficientNet.")
     parser.add_argument("--bootstrap_n", type=int, default=200, help="Number of bootstrap iterations.")
-    parser.add_argument("--results_folder_name", type=str, default="2_class_results", help="Folder to save results.")
+    parser.add_argument("--results_folder_name", type=str, help="Folder to save results.")
     parser.add_argument("--save_logs", action="store_true", help="Save logs and outputs.")
 
     args = parser.parse_args()

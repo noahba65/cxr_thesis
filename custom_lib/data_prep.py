@@ -7,10 +7,11 @@ from torch.utils.data import DataLoader, ConcatDataset, random_split, Subset
 
 def data_transformation_pipeline(
     image_size,
-    rotate_angle=None,
-    horizontal_flip_prob=None,
-    gaussian_blur=None,
-    normalize=False,
+    center_crop,
+    rotate_angle,
+    horizontal_flip_prob,
+    gaussian_blur,
+    normalize,
     is_train=False
 ):
     """
@@ -31,7 +32,7 @@ def data_transformation_pipeline(
 
     # Basic resizing and cropping
     transform_steps.append(Resize(image_size))
-    transform_steps.append(CenterCrop(image_size))
+    transform_steps.append(CenterCrop(center_crop))
 
     # Training-specific augmentations
     if is_train:
@@ -53,7 +54,7 @@ def data_transformation_pipeline(
 
 
 def data_loader(data_dir, train_transform, val_transform, test_transform, seed, 
-                batch_size=32, train_prop=0.8, val_prop=0.1, num_workers=4):
+                batch_size, train_prop, val_prop, num_workers=4):
     """
     Creates train, validation, and test DataLoaders from a dataset.
 
@@ -101,9 +102,12 @@ def data_loader(data_dir, train_transform, val_transform, test_transform, seed,
     testset.dataset.transform = test_transform
 
     # Create DataLoaders
-    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
-    val_loader = DataLoader(valset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True)
-    test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True,
+                              drop_last=True)
+    val_loader = DataLoader(valset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True,
+                            drop_last=True)
+    test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True,
+                             drop_last=True)
 
     # Log split sizes
     print(f"Train size: {train_size}, Validation size: {val_size}, Test size: {test_size}")

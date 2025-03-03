@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # Loop through the model names (e.g., truncated_b0, truncated_b0_leaky)
-for MODEL_NAME in "truncated_b0" "truncated_b0_leaky" "truncated_b0_leaky2"; do
+for MODEL_NAME in "truncated_b0" "truncated_b0_leaky"; do
     # Loop through truncated layers (0 to 5)
     for TRUNCATED_LAYERS in {0..4}; do
         # Loop over two cases: with and without --pretrained
-        for PRETRAINED in true false; do
+        for PRETRAINED in true; do
 
             echo "Running experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED"
 
             # Define the results directory based on whether pretrained is used
             if [ "$PRETRAINED" = "true" ]; then
-                RESULTS_DIR="test/pretrained"
+                RESULTS_DIR="3_class_results_bootstrap/pretrained"
                 CMD=("python" "run_model.py" "--pretrained")
             else
                 RESULTS_DIR="test/not_pretrained"
@@ -30,6 +30,7 @@ for MODEL_NAME in "truncated_b0" "truncated_b0_leaky" "truncated_b0_leaky2"; do
                 "--results_folder_name" "$RESULTS_DIR"
                 "--normalize"
                 "--seed" "42"
+                "--bootstrap_n" "1000"
             )
 
             # Execute the command

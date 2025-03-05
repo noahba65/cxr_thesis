@@ -10,8 +10,10 @@ def data_transformation_pipeline(
     center_crop,
     rotate_angle,
     horizontal_flip_prob,
-    gaussian_blur,
+    gaussian_blur_k,
+    gaussian_blur_s,
     normalize,
+    brightness_contrast_range,
     is_train=False
 ):
     """
@@ -40,8 +42,12 @@ def data_transformation_pipeline(
             transform_steps.append(RandomRotation(degrees=rotate_angle))
         if horizontal_flip_prob is not None:
             transform_steps.append(RandomHorizontalFlip(p=horizontal_flip_prob))
-        if gaussian_blur is not None:
-            transform_steps.append(GaussianBlur(kernel_size=gaussian_blur))
+        if gaussian_blur_k is not None:
+            transform_steps.append(GaussianBlur(kernel_size=gaussian_blur_k,
+                                                sigma=gaussian_blur_s))
+        if brightness_contrast_range is not None:
+            brightness_min, brightness_max, contrast_min, contrast_max = brightness_contrast_range
+            transform_steps.append(ColorJitter(brightness=(brightness_min, brightness_max), contrast=(contrast_min, contrast_max)))
 
     # Convert to tensor
     transform_steps.append(ToTensor())

@@ -79,22 +79,28 @@ def main(args):
                                                    center_crop=args.center_crop,
                                                    rotate_angle=args.rotate_angle,
                                                    horizontal_flip_prob=args.horizontal_flip_prob,
-                                                   gaussian_blur=args.gaussian_blur,
+                                                   gaussian_blur_k=args.gaussian_blur_k,
+                                                   gaussian_blur_s=args.gaussian_blur_s,
                                                    normalize=args.normalize,
+                                                   brightness_contrast_range=args.brightness_contrast_range,
                                                    is_train=True)
     test_transform = data_transformation_pipeline(image_size = args.image_size,
+                                                  center_crop=args.center_crop,
                                                 rotate_angle=args.rotate_angle,
                                                 horizontal_flip_prob=args.horizontal_flip_prob,
-                                                center_crop=args.center_crop,
-                                                gaussian_blur=args.gaussian_blur,
+                                                gaussian_blur_k=args.gaussian_blur_k,
+                                                gaussian_blur_s=args.gaussian_blur_s,
                                                 normalize=args.normalize,
+                                                brightness_contrast_range=args.brightness_contrast_range,
                                                 is_train=False)
-    val_transform = data_transformation_pipeline(image_size = args.image_size,
+    val_transform = data_transformation_pipeline(image_size = args.image_size,                                        
                                                 rotate_angle=args.rotate_angle,
                                                 center_crop=args.center_crop,
                                                 horizontal_flip_prob=args.horizontal_flip_prob,
-                                                gaussian_blur=args.gaussian_blur,
+                                                gaussian_blur_k=args.gaussian_blur_k,
+                                                gaussian_blur_s=args.gaussian_blur_s,
                                                 normalize=args.normalize,
+                                                brightness_contrast_range=args.brightness_contrast_range,
                                                 is_train=False)
 
 
@@ -217,7 +223,7 @@ def main(args):
         else:
             test_results_df = pd.DataFrame(columns=[
                 "model_id", "model", "epochs", "run_time", "lr", "image_size",
-                "rotate_angle", "horizontal_flip_prob", "gaussian_blur", "normalize", "seed", "truncated_layers"
+                "rotate_angle", "horizontal_flip_prob", "gaussian_blur_k", "gaussian_blur_s", "normalize", "seed", "truncated_layers"
             ])
 
         if args.bootstrap_n != None:
@@ -237,7 +243,8 @@ def main(args):
             "image_size": [args.image_size],  
             "rotate_angle": [args.rotate_angle],  
             "horizontal_flip_prob": [args.horizontal_flip_prob],  
-            "gaussian_blur": [args.gaussian_blur],  
+            "gaussian_blur_k": [args.gaussian_blur_k],  
+            "gaussian_blur_s": [args.gaussian_blur_s],  
             "normalize": [args.normalize],
             "seed": [args.seed],
             "gflops": [gflops],
@@ -285,7 +292,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--rotate_angle", type=float, default=None, help="Rotation angle for data augmentation.")
     parser.add_argument("--horizontal_flip_prob", type=float, default=None, help="Probability of horizontal flip for data augmentation.")
-    parser.add_argument("--gaussian_blur", type=float, default=None, help="Gaussian blur for data augmentation.")
+    parser.add_argument("--gaussian_blur_k", type=int, default=None, help="Gaussian blur kernel for data augmentation.")
+    parser.add_argument("--gaussian_blur_s", type=int, default=None, help="Gaussian blur sigma for data augmentation.")
     parser.add_argument("--normalize", action="store_true", help="Normalize the data.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--truncated_layers", type=int, default=0, help="Number of layers to truncate from EfficientNet.")
@@ -297,6 +305,14 @@ if __name__ == "__main__":
     parser.add_argument("--train_prop", type=float, default=.8, help="What proportion to split training data on.")
     parser.add_argument("--val_prop", type=float, default=.1, help="Proportion for validation set.")
     parser.add_argument("--dropout_p", type=float, default=.2, help="The probablity for the dropout in classifier layer.")
+    parser.add_argument(
+    "--brightness_contrast_range", 
+    type=float, 
+    nargs=4, 
+    metavar=("BRIGHTNESS_MIN", "BRIGHTNESS_MAX", "CONTRAST_MIN", "CONTRAST_MAX"),
+    help="Brightness and contrast range as four float values: brightness_min brightness_max contrast_min contrast_max"
+    )
+
 
     args = parser.parse_args()
     main(args)

@@ -32,6 +32,7 @@ myenv/
 data_3_class/
 data_4_class/
 data_2_class/
+tb_external_test/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

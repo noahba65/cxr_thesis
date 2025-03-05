@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Loop through the model names (e.g., truncated_b0, truncated_b0_leaky)
-for MODEL_NAME in "truncated_b0" "truncated_b0_leaky"; do
+for MODEL_NAME in "truncated_b0_leaky"; do
     # Loop through truncated layers (0 to 5)
     for TRUNCATED_LAYERS in {0..5}; do
         # Loop over two cases: with and without --pretrained

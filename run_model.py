@@ -18,6 +18,34 @@ import importlib
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from poutyne import ReduceLROnPlateau, Callback
 from thop import profile
+from custom_lib.eval_tools import tb_metrics_generator
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+from torchvision.datasets import ImageFolder
+from torch.utils.data import DataLoader
+
+
+def plot_tb_cm(y_true, y_pred, tb_class_index, results_dir, fname):
+    # Convert predictions to class labels if necessary
+    y_pred_to_class = np.argmax(y_pred, axis=1)  # Assuming y_pred is the output from the model
+    
+    # Calculate the confusion matrix
+    cm = confusion_matrix(y_true, y_pred_to_class)
+
+    # Determine the class labels based on the provided tb_class_index
+    if tb_class_index == 0:
+        labels = ['TB', 'Normal']
+    else:
+        labels = ['Normal', 'TB']  # Swap labels if TB is the second class (index 1)
+
+    # Create the heatmap plot with custom labels
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=labels, yticklabels=labels)
+    
+    plt.savefig(f"{results_dir}/{fname}.png", bbox_inches='tight')
+    plt.close()  # Closes the current figure
+
+
 
 
 def load_model(model_name, **kwargs):
@@ -75,6 +103,9 @@ def main(args):
             )
     print(f"Using {device} device")
 
+    ############################# Loading and Transforming Data #############################################
+
+    # Set data transform parameters
     train_transform = data_transformation_pipeline(image_size = args.image_size,
                                                    center_crop=args.center_crop,
                                                    rotate_angle=args.rotate_angle,
@@ -84,36 +115,54 @@ def main(args):
                                                    normalize=args.normalize,
                                                    brightness_contrast_range=args.brightness_contrast_range,
                                                    is_train=True)
-    test_transform = data_transformation_pipeline(image_size = args.image_size,
-                                                  center_crop=args.center_crop,
-                                                rotate_angle=args.rotate_angle,
-                                                horizontal_flip_prob=args.horizontal_flip_prob,
-                                                gaussian_blur_k=args.gaussian_blur_k,
-                                                gaussian_blur_s=args.gaussian_blur_s,
-                                                normalize=args.normalize,
-                                                brightness_contrast_range=args.brightness_contrast_range,
-                                                is_train=False)
-    val_transform = data_transformation_pipeline(image_size = args.image_size,                                        
-                                                rotate_angle=args.rotate_angle,
-                                                center_crop=args.center_crop,
-                                                horizontal_flip_prob=args.horizontal_flip_prob,
-                                                gaussian_blur_k=args.gaussian_blur_k,
-                                                gaussian_blur_s=args.gaussian_blur_s,
-                                                normalize=args.normalize,
-                                                brightness_contrast_range=args.brightness_contrast_range,
-                                                is_train=False)
+    
+    val_transform = data_transformation_pipeline(image_size = args.image_size,
+                                                 center_crop=args.center_crop,     
+                                                 normalize=args.normalize,   
+                                                 rotate_angle = None,
+                                                 horizontal_flip_prob = None,
+                                                 gaussian_blur_k = None,
+                                                 gaussian_blur_s = None,
+                                                 brightness_contrast_range = None,
+                                                 is_train=False)
+    
+    # Data path
+    data_path = f"{args.data_dir}/{args.data_folder}"
 
+    # Read in CXR data
+    data = ImageFolder(data_path)
 
-    train_loader , val_loader, test_loader, num_classes = data_loader(args.data_dir, 
+    num_classes = len(data.classes)
+
+    # Load training, validation, and testing data
+    train_loader , val_loader, test_loader = data_loader(data_path, 
                                                         train_transform=train_transform,
-                                                        test_transform=test_transform,
                                                         val_transform=val_transform,
                                                         seed=args.seed,
                                                         batch_size=args.batch_size,
                                                         train_prop=args.train_prop,
-                                                        val_prop=args.val_prop
                                                         )
     
+    # If the user wants to test the model on a totally different dataset after normal training and testing is done, then this chunk
+    # reads in the external dataset 
+    if args.external_data_folder is not None:
+
+        external_data_path = f"{args.data_dir}/{args.external_data_folder}"
+
+        # Apply transformations to dataset
+        external_data = ImageFolder(external_data_path, transform=val_transform)
+
+        # Create DataLoader
+        external_test_loader = DataLoader(
+                        external_data, batch_size=args.batch_size * 2, num_workers=4, pin_memory=True, drop_last=True)
+        
+        # Make sure the internal and the external sets have the same folder structure. If the names are different and it causes
+        # the class folders to be in different orders, then it may not be evaluating the correct classes
+        if data.class_to_idx != external_data.class_to_idx:
+            raise ValueError("Class indexes and labels do not match between the internal and external data sets. Please ensure they are consistent.")
+
+    ############################################################################################
+    ################ Define Model and set Callbacks ####################
     model = load_model(
                 args.model_name,
                 num_classes=num_classes,
@@ -131,12 +180,22 @@ def main(args):
         results_dir = os.path.join(f"{args.results_folder_name}/{args.model_name}_reduced_layers_{args.truncated_layers}_{timestamp}")
         os.makedirs(results_dir, exist_ok=True)
         print(f"Logs and output will be saved in: {results_dir}")
+    
+    # num_pos = 2495
+    # num_neg = 514
+    # pos_weight = torch.tensor([num_neg / num_pos])  # This adjusts the loss for imbalance
         
     poutyne_model = Model(
                         model,
                         # optimizer=torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9),  # Added momentum
 
                         optimizer=torch.optim.Adam(model.parameters(), lr=args.lr),
+                        # optimizer = nn.BCEWithLogitsLoss(pos_weight=pos_weight), # Calculate class weights
+                        # num_pos = 2495
+                        # num_neg = 514
+
+                        # pos_weight = torch.tensor([num_neg / num_pos])  # This adjusts the loss for imbalance
+                        # optimizer = nn.BCEWithLogitsLoss(pos_weight=pos_weight)# Calculate class weights
                         loss_function=nn.CrossEntropyLoss(),
                         batch_metrics=["accuracy"],
                         device=device
@@ -166,6 +225,8 @@ def main(args):
         csv_logger = CSVLogger(f"{results_dir}/training_logs.csv")
         callbacks = [checkpoint, csv_logger, reduce_lr, print_lr_callback]
         
+    ############################################################################################
+    ################ Train Model ####################
 
     start_time = time.time()
     # 7. Train the model
@@ -177,10 +238,11 @@ def main(args):
 
     print(f"Model training took {run_time / 60} minutes")
 
+    # Save the final model if save_logs is True 
     if args.save_logs:
-        # Save the final model manually
         torch.save(poutyne_model.network.state_dict(), f"{results_dir}/final_model.pth")
 
+    # If save_logs is True, load the best peforming model by min validation loss for evaluation
     if args.save_logs:
         best_model_path = f"{results_dir}/best_model.pth"
         
@@ -188,29 +250,76 @@ def main(args):
         poutyne_model.network.load_state_dict(torch.load(best_model_path))
 
 
+    ############################################################################################
+    ################ Testing model on internal test data ####################
+    print("Starting test evalution")
+
+    # Evaluate using Poutyne
+    test_loss, test_acc, y_pred, y_true = poutyne_model.evaluate_generator(test_loader, 
+                                                                           return_pred=True, 
+                                                                           return_ground_truth=True)
+
+    print("Starting TB specificity and sensitivity evaluation")
     
-    if args.bootstrap_n == None:
+    # The evaluation function select the TB index, this line will print an error if the passed (or default) TB folder name
+    # argument is not found in the data
+    if args.tb_folder_name not in data.class_to_idx:
+        raise ValueError(f"Error: '{args.tb_folder_name}' is not a valid class name. Available options are: {list(data.class_to_idx.keys())}")
 
-        print("Starting single test evalution")
+    # Extract TB index to ensure TB metrics generator and the confusion matrix are both calculated correctly
+    tb_class_index = data.class_to_idx[args.tb_folder_name]
+
+
+    tb_sen, tb_spec = tb_metrics_generator(y_pred=y_pred, y_true=y_true, tb_class_index=tb_class_index)
+
+    print("Internal TB Sensitivity: ", tb_sen)
+    print("Internal TB Specificity: ", tb_spec)
+
+    # Plot and save confusion matrix
+    if args.save_logs:
+        plot_tb_cm(y_true=y_true, y_pred=y_pred, tb_class_index=tb_class_index, 
+                   results_dir=results_dir, fname = "confusion_matrix")
+
+
+    ############################################################################################
+    ################ Testing model on external data if selected ####################    
+
+    # Since the external results are a column in the test results csv, these need to be intialized
+    # as `None` so that we do not cause an error when saving the results
+    test_acc_external = None
+    test_loss_external = None
+    tb_sen_external = None
+    tb_spec_external = None
+    
+    if args.external_data_folder is not None:
+
+        print("Starting external test evalution")
+
         # Evaluate using Poutyne
-        test_loss, test_acc = poutyne_model.evaluate_generator(test_loader)
-    else: 
-        from custom_lib.bootstrap import bootstrap_evaluation_poutyne
+        test_loss_external, test_acc_external, y_pred_external, y_true_external = poutyne_model.evaluate_generator(
+                                                                            external_test_loader, 
+                                                                            return_pred=True, 
+                                                                            return_ground_truth=True)
 
+        print("Starting TB specificity and sensitivity evaluation") 
+
+        tb_sen_external, tb_spec_external = tb_metrics_generator(y_pred=y_pred_external, y_true=y_true_external, tb_class_index=tb_class_index)
+
+        print("External TB Sensitivity: ", tb_sen_external)
+        print("Exteranl TB Specificity: ", tb_spec_external)
+
+        # Plot and save confusion matrix
         if args.save_logs:
+            plot_tb_cm(y_true=y_true_external, y_pred=y_pred_external, tb_class_index=tb_class_index, 
+                       results_dir=results_dir, fname = "confusion_matrix_external")
 
-            print("Starting bootstrap evalution")
+    ##########################################################################################
 
-            # Run bootstrapping evaluation with your Poutyne model
-            boot_strap_results = bootstrap_evaluation_poutyne(poutyne_model, test_loader, n_bootstraps = args.bootstrap_n, 
-                                                          save_logs=args.save_logs, results_dir=results_dir, seed=args.seed)
-        else:
-            print("Starting bootstrap evalution")
-            boot_strap_results = bootstrap_evaluation_poutyne(poutyne_model, test_loader, n_bootstraps = args.bootstrap_n,
-                                                           save_logs=args.save_logs, seed=args.seed)
-
+    # Calculate and print Giga FLOPS and model parameters
     gflops, params = compute_model_stats(model, batch_size=args.batch_size, image_size=args.image_size)
   
+    ######################### Saving results ###########################################
+
     # Save logs and plots
     if args.save_logs:
         with open(f"{results_dir}/model_overview.txt", "w") as file:
@@ -221,14 +330,8 @@ def main(args):
         if os.path.exists(f"{args.results_folder_name}/test_results.csv"):
             test_results_df = pd.read_csv(f"{args.results_folder_name}/test_results.csv")
         else:
-            test_results_df = pd.DataFrame(columns=[
-                "model_id", "model", "epochs", "run_time", "lr", "image_size",
-                "rotate_angle", "horizontal_flip_prob", "gaussian_blur_k", "gaussian_blur_s", "normalize", "seed", "truncated_layers"
-            ])
+            test_results_df = pd.DataFrame()
 
-        if args.bootstrap_n != None:
-            test_loss = None
-            test_acc = None
 
 
         # Create a DataFrame for the new model's metadata
@@ -245,20 +348,23 @@ def main(args):
             "horizontal_flip_prob": [args.horizontal_flip_prob],  
             "gaussian_blur_k": [args.gaussian_blur_k],  
             "gaussian_blur_s": [args.gaussian_blur_s],  
+            "brightness_contrast_range": [args.brightness_contrast_range],
             "normalize": [args.normalize],
             "seed": [args.seed],
             "gflops": [gflops],
             "params": [params],
             "single_test_acc": [test_acc],
             "single_test_loss": [test_loss],
-            "bootstrap_n": [args.bootstrap_n],
+            "external_test_acc": [test_acc_external],
+            "external_test_loss": [test_loss_external],
+            "internal_TB_val_sensitivity": [tb_sen],
+            "internal__TB_val_specificity": [tb_spec],
+            "external_TB_val_sensitivity": [tb_sen_external],
+            "external_TB_val_specificity": [tb_spec_external],
             "train_prop": [args.train_prop],
-            "val_prop": [args.val_prop]
+            "internal_data": [args.data_folder],
+            "external_data": [args.external_data_folder]
             })
-
-        if args.bootstrap_n != None:
-            # Combine test metadata with bootstrapped results (column-wise merge)
-            new_results_df = pd.concat([new_results_df, boot_strap_results], axis=1)
 
 
         # Append to existing DataFrame
@@ -285,33 +391,36 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a truncated EfficientNet model.")
     parser.add_argument("--data_dir", type=str, help="Directory containing the dataset.")
+    parser.add_argument("--data_folder", type=str, help="Name of CXR data folder")
+    parser.add_argument("--external_data_folder", default=None, type=str, help="Folder containing an external test dataset.")
+    parser.add_argument("--tb_folder_name", default='TB', type=str, help="The name of the TB folder in the internal and or external dataset.")
     parser.add_argument("--model_name", type=str, choices=["truncated_b0", "truncated_b0_leaky", "truncated_b0_leaky2"], help="Custom model found in custom_lib.custom_models.")
     parser.add_argument("--pretrained", action="store_true", help="Use pretrained weights.")
     parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
+    # parser.add_argument("--weighted_loss", type=int, nargs=2, default=None, metavar=("num_tb", "num_non"))
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--rotate_angle", type=float, default=None, help="Rotation angle for data augmentation.")
     parser.add_argument("--horizontal_flip_prob", type=float, default=None, help="Probability of horizontal flip for data augmentation.")
-    parser.add_argument("--gaussian_blur_k", type=int, default=None, help="Gaussian blur kernel for data augmentation.")
-    parser.add_argument("--gaussian_blur_s", type=int, default=None, help="Gaussian blur sigma for data augmentation.")
+    parser.add_argument("--brightness_contrast_range", 
+    type=float, nargs=4, default=None, metavar=("BRIGHTNESS_MIN", "BRIGHTNESS_MAX", "CONTRAST_MIN", "CONTRAST_MAX"),
+    help="Brightness and contrast range as four float values: brightness_min brightness_max contrast_min contrast_max"
+    )
+    parser.add_argument("--gaussian_blur", 
+    type=int, nargs=2, default=None, metavar=("kernel_size", "sigma"),
+    help="Specifies the parameters for Gaussian blur. 'kernel_size' defines the size of the filter (i.e., how many pixels are considered during the blur), and 'sigma' controls the amount of blur applied (i.e., the standard deviation of the Gaussian distribution)."
+    )
     parser.add_argument("--normalize", action="store_true", help="Normalize the data.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--truncated_layers", type=int, default=0, help="Number of layers to truncate from EfficientNet.")
-    parser.add_argument("--bootstrap_n", type=int, default=None, help="Number of bootstrap iterations.")
     parser.add_argument("--results_folder_name", type=str, help="Folder to save results.")
     parser.add_argument("--save_logs", action="store_true", help="Save logs and outputs.")
     parser.add_argument("--image_size", type=int, default=224, help="Size of image for resize in data transform")
     parser.add_argument("--center_crop", type = int, default=224, help="Centercrop of image in data transform")
     parser.add_argument("--train_prop", type=float, default=.8, help="What proportion to split training data on.")
-    parser.add_argument("--val_prop", type=float, default=.1, help="Proportion for validation set.")
     parser.add_argument("--dropout_p", type=float, default=.2, help="The probablity for the dropout in classifier layer.")
-    parser.add_argument(
-    "--brightness_contrast_range", 
-    type=float, 
-    nargs=4, 
-    metavar=("BRIGHTNESS_MIN", "BRIGHTNESS_MAX", "CONTRAST_MIN", "CONTRAST_MAX"),
-    help="Brightness and contrast range as four float values: brightness_min brightness_max contrast_min contrast_max"
-    )
+
+
 
 
     args = parser.parse_args()

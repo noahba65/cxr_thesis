@@ -110,8 +110,7 @@ def main(args):
                                                    center_crop=args.center_crop,
                                                    rotate_angle=args.rotate_angle,
                                                    horizontal_flip_prob=args.horizontal_flip_prob,
-                                                   gaussian_blur_k=args.gaussian_blur_k,
-                                                   gaussian_blur_s=args.gaussian_blur_s,
+                                                   gaussian_blur=args.gaussian_blur,
                                                    normalize=args.normalize,
                                                    brightness_contrast_range=args.brightness_contrast_range,
                                                    is_train=True)
@@ -121,8 +120,7 @@ def main(args):
                                                  normalize=args.normalize,   
                                                  rotate_angle = None,
                                                  horizontal_flip_prob = None,
-                                                 gaussian_blur_k = None,
-                                                 gaussian_blur_s = None,
+                                                 gaussian_blur = None,
                                                  brightness_contrast_range = None,
                                                  is_train=False)
     
@@ -346,8 +344,7 @@ def main(args):
             "image_size": [args.image_size],  
             "rotate_angle": [args.rotate_angle],  
             "horizontal_flip_prob": [args.horizontal_flip_prob],  
-            "gaussian_blur_k": [args.gaussian_blur_k],  
-            "gaussian_blur_s": [args.gaussian_blur_s],  
+            "gaussian_blur": [args.gaussian_blur],  
             "brightness_contrast_range": [args.brightness_contrast_range],
             "normalize": [args.normalize],
             "seed": [args.seed],

@@ -12,8 +12,7 @@ def data_transformation_pipeline(
     normalize,
     rotate_angle = None,
     horizontal_flip_prob = None,
-    gaussian_blur_k = None,
-    gaussian_blur_s = None,
+    gaussian_blur = None,
     brightness_contrast_range = None,
     is_train=False
 ):
@@ -43,9 +42,10 @@ def data_transformation_pipeline(
             transform_steps.append(RandomRotation(degrees=rotate_angle))
         if horizontal_flip_prob is not None:
             transform_steps.append(RandomHorizontalFlip(p=horizontal_flip_prob))
-        if gaussian_blur_k is not None:
-            transform_steps.append(GaussianBlur(kernel_size=gaussian_blur_k,
-                                                sigma=gaussian_blur_s))
+        if gaussian_blur is not None:
+            kernel_size, sigma = gaussian_blur 
+            transform_steps.append(GaussianBlur(kernel_size=kernel_size,
+                                                sigma=sigma))
         if brightness_contrast_range is not None:
             brightness_min, brightness_max, contrast_min, contrast_max = brightness_contrast_range
             transform_steps.append(ColorJitter(brightness=(brightness_min, brightness_max), contrast=(contrast_min, contrast_max)))
@@ -80,6 +80,8 @@ def data_loader(data_path, train_transform, val_transform, train_prop, batch_siz
     The DataLoader objects are created using `SubsetRandomSampler` based on the stratified splits
     of the dataset to ensure balanced class distribution across train, validation, and test sets.
     """
+
+    torch.manual_seed(seed)  # For PyTorch
 
     # Load full dataset without transform (we'll assign it later)
     full_dataset = datasets.ImageFolder(root=data_path)

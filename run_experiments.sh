@@ -1,44 +1,38 @@
 #!/bin/bash
 
 # Loop through the model names (e.g., truncated_b0, truncated_b0_leaky)
-for MODEL_NAME in "truncated_b0_leaky"; do
+for MODEL_NAME in "truncated_b0"; do
     # Loop through truncated layers (0 to 5)
-    for TRUNCATED_LAYERS in {0..5}; do
-        # Loop over two cases: with and without --pretrained
-        for PRETRAINED in true; do
+    for TRUNCATED_LAYERS in 2 4 5; do
+        
 
-            echo "Running experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED"
+        echo "Running experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS"
 
-            # Define the results directory based on whether pretrained is used
-            if [ "$PRETRAINED" = "true" ]; then
-                RESULTS_DIR="4_class_results_bootstrap"
-                CMD=("python" "run_model.py" "--pretrained")
-            else
-                RESULTS_DIR="test/not_pretrained"
-                CMD=("python" "run_model.py")
-            fi
+        CMD=("python" "run_model.py")
 
-            # Append other parameters
-            CMD+=(
-                "--model_name" "$MODEL_NAME"
-                "--truncated_layers" "$TRUNCATED_LAYERS"  # Pass as string, but Python will parse it as int
-                "--save_logs"
-                "--epochs" "50"
-                "--data_dir" "data_4_class"
-                "--batch_size" "32"
-                "--lr" ".001"
-                "--results_folder_name" "$RESULTS_DIR"
-                "--normalize"
-                "--seed" "42"
-                "--bootstrap_n" "1000"
-            )
+        # Append other parameters
+        CMD+=(
+            "--model_name" "$MODEL_NAME"
+            "--truncated_layers" "$TRUNCATED_LAYERS"  # Pass as string, but Python will parse it as int
+            "--save_logs"
+            "--epochs" "30"
+            "--data_dir" "~/Documents/data/"
+            "--data_folder" "kaggle_expanded_tb"
+            "--external_data_folder" "mendeley_expanded_tb"
+            "--batch_size" "32"
+            "--lr" ".001"
+            "--results_folder_name" "tb_results"
+            "--normalize"
+            "--seed" "42"
+            "--pretrained"
+        )
 
-            # Execute the command
-            "${CMD[@]}"
+        # Execute the command
+        "${CMD[@]}"
 
-            echo "Experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED completed."
-            echo "--------------------------------------------------"
-        done
+        echo "Experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS, pretrained=$PRETRAINED completed."
+        echo "--------------------------------------------------"
+        
     done
 done
 

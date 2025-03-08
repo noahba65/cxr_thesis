@@ -152,7 +152,7 @@ def main(args):
 
         # Create DataLoader
         external_test_loader = DataLoader(
-                        external_data, batch_size=args.batch_size * 2, num_workers=4, pin_memory=True, drop_last=True)
+                        external_data, batch_size=args.batch_size * 2, num_workers=4, pin_memory=True, drop_last=False)
         
         # Make sure the internal and the external sets have the same folder structure. If the names are different and it causes
         # the class folders to be in different orders, then it may not be evaluating the correct classes

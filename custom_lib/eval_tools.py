@@ -5,17 +5,18 @@ from poutyne import Model
 from sklearn.metrics import f1_score, recall_score, precision_score, confusion_matrix
 
 
-def bootstrap_evaluation_poutyne(model, test_loader, save_logs, n_bootstraps, seed, results_dir=None):
+def bootstrap_evaluation_poutyne(model, data, save_logs, n_bootstraps, seed, 
+                                 tb_class_index, results_dir=None):
     """
     Perform bootstrap evaluation of a model on a test dataset.
 
     Args:
         model: The trained Poutyne model to evaluate.
-        test_loader: DataLoader for the test dataset.
+        data: The dataset to evaluate on (e.g., ImageFolder dataset).
         save_logs: Whether to save the metric distributions to CSV.
-        results_dir: Directory to save the bootstrap distribution CSV.
         n_bootstraps: Number of bootstrap samples to generate.
         seed: Random seed for reproducibility.
+        results_dir: Directory to save the bootstrap distribution CSV.
 
     Returns:
         A pandas DataFrame with mean and confidence intervals for:
@@ -36,100 +37,65 @@ def bootstrap_evaluation_poutyne(model, test_loader, save_logs, n_bootstraps, se
         "loss": [],
     }
 
-    for _ in range(n_bootstraps):
-        sampled_indices = rng.choice(len(test_loader.dataset), len(test_loader.dataset), replace=True)
-        sampled_subset = Subset(test_loader.dataset, sampled_indices)
-        sampled_loader = DataLoader(sampled_subset, batch_size=test_loader.batch_size, shuffle=False)
+    # Calculate 10% of the dataset size
+    subset_size = int(0.1 * len(data))
 
-        # Evaluate using Poutyne
-        test_loss, test_acc = model.evaluate_generator(sampled_loader)
+    for i in range(n_bootstraps):
 
-        # Extract predictions and true labels
-        y_true, y_pred = [], []
-        for inputs, labels in sampled_loader:
-            outputs = model.predict_on_batch(inputs)
-            y_true.extend(labels.cpu().numpy())
-            y_pred.extend(np.argmax(outputs, axis=1))
+        print(f"step {i + 1}/{n_bootstraps}")
+        # Sample 10% of the data with replacement
+        sampled_indices = rng.choice(len(data), subset_size, replace=True)
+        sampled_subset = Subset(data, sampled_indices)
+        sampled_loader = DataLoader(sampled_subset, batch_size=32 * 2, shuffle=False)
 
-        # Compute metrics
-        f1 = f1_score(y_true, y_pred, average='macro')
-        sensitivity = recall_score(y_true, y_pred, average='macro')
+        # Evaluate the model on the sampled subset
+        sample_test_loss, sample_test_acc, sample_y_pred, sample_y_true = model.evaluate_generator(
+            sampled_loader, 
+            return_pred=True,
+            return_ground_truth=True
+        )
 
-        # Compute specificity
-        cm = confusion_matrix(y_true, y_pred)
-        specificity_values = []
-        for i in range(cm.shape[0]):
-            col_sum = cm[:, i].sum()
-            if col_sum > 0:
-                specificity_values.append(cm[i, i] / col_sum)
-        specificity = np.mean(specificity_values) if specificity_values else 0.0
+        sample_sens, sample_spec = tb_metrics_generator(y_pred=sample_y_pred, y_true=sample_y_true, tb_class_index=tb_class_index)
 
-        # Store results
-        metrics["accuracy"].append(test_acc)
-        metrics["f1_score"].append(f1)
-        metrics["sensitivity"].append(sensitivity)
-        metrics["specificity"].append(specificity)
-        metrics["loss"].append(test_loss)
+        sample_f1_score = 2 * (sample_sens * sample_spec) / (sample_spec + sample_sens)
+
+        # Append metrics to the list
+        metrics["accuracy"].append(sample_test_acc)
+
+        metrics["loss"].append(sample_test_loss)
+
+        metrics["sensitivity"].append(sample_sens)
+
+        metrics["specificity"].append(sample_spec)
+
+        metrics["f1_score"].append(sample_f1_score)
+
+
+
+    # Convert metrics to a DataFrame
+    metrics_df = pd.DataFrame(metrics)
 
     if save_logs:
-        # Save the full bootstrap distributions
-        dist_df = pd.DataFrame(metrics)
-        dist_df.to_csv(f"{results_dir}/bootstrap_distribution.csv", index=False)
+        metrics_df.to_csv(f"{results_dir}/bootstrap_distribution.csv", index=False)
 
-    # Compute mean and confidence intervals
-    def compute_ci(values):
-        return np.mean(values), np.percentile(values, 2.5), np.percentile(values, 97.5)
 
-    results_dict = {f"boot_{metric}_{stat}": value
-                    for metric, values in metrics.items()
-                    for stat, value in zip(["mean", "low", "high"], compute_ci(values))}
+    # Calculate mean and confidence intervals
+    mean_metrics = metrics_df.mean()
+    confidence_intervals = metrics_df.apply(lambda x: np.percentile(x, [2.5, 97.5]))
 
-    # Convert to DataFrame
-    results_df = pd.DataFrame([results_dict])
+    # Create a new DataFrame for mean and confidence intervals
+    results_df = pd.DataFrame({
+        "metric": mean_metrics.index,
+        "mean": mean_metrics.values,
+        "lower_ci": confidence_intervals.apply(lambda x: x[0]),  # 2.5th percentile
+        "upper_ci": confidence_intervals.apply(lambda x: x[1]),  # 97.5th percentile
+    })
+
+    if save_logs:
+        metrics_df.to_csv(f"{results_dir}/metrics_df.csv", index=False)
+
 
     return results_df
-
-
-
-
-def evaluate_tb_class(model, test_loader, tb_class_index):
-    """
-    Evaluates the sensitivity and specificity for the TB class.
-    
-    Args:
-        model: The trained Poutyne model.
-        test_loader: DataLoader for the test dataset.
-        tb_class_index: The index of the TB class in the class_names list.
-        
-    Returns:
-        A dictionary with sensitivity and specificity for the TB class.
-    """
-    # Store true labels and predictions
-    y_true, y_pred = [], []
-
-    for inputs, labels in test_loader:
-        inputs, labels = inputs.to(model.device), labels.to(model.device)  # Move to GPU if available
-        outputs = model.predict_on_batch(inputs)  # Get model predictions
-        y_true.extend(labels.cpu().numpy())
-        y_pred.extend(np.argmax(outputs, axis=1))  # Convert logits to class indices
-
-    # Compute confusion matrix for TB class
-    cm = confusion_matrix(y_true, y_pred)
-    tp = cm[tb_class_index, tb_class_index]  # True positives for TB class
-    fn = cm[tb_class_index].sum() - tp  # False negatives for TB class
-    fp = cm[:, tb_class_index].sum() - tp  # False positives for TB class
-    tn = cm.sum() - (tp + fn + fp)  # True negatives for TB class
-
-    # Calculate sensitivity (recall) for the TB class
-    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-
-    # Calculate specificity for the TB class
-    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
-
-    # Return the results
-    results = {sensitivity, specificity}
-
-    return results
 
 
 def tb_metrics_generator(y_pred, y_true, tb_class_index):

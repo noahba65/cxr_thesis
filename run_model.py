@@ -185,15 +185,7 @@ def main(args):
         
     poutyne_model = Model(
                         model,
-                        # optimizer=torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9),  # Added momentum
-
                         optimizer=torch.optim.Adam(model.parameters(), lr=args.lr),
-                        # optimizer = nn.BCEWithLogitsLoss(pos_weight=pos_weight), # Calculate class weights
-                        # num_pos = 2495
-                        # num_neg = 514
-
-                        # pos_weight = torch.tensor([num_neg / num_pos])  # This adjusts the loss for imbalance
-                        # optimizer = nn.BCEWithLogitsLoss(pos_weight=pos_weight)# Calculate class weights
                         loss_function=nn.CrossEntropyLoss(),
                         batch_metrics=["accuracy"],
                         device=device
@@ -314,7 +306,7 @@ def main(args):
     ##########################################################################################
 
     # Calculate and print Giga FLOPS and model parameters
-    gflops, params = compute_model_stats(model, batch_size=args.batch_size, image_size=args.image_size)
+    gflops, params = compute_model_stats(model, batch_size=1, image_size=args.image_size)
   
     ######################### Saving results ###########################################
 
@@ -391,11 +383,10 @@ if __name__ == "__main__":
     parser.add_argument("--data_folder", type=str, help="Name of CXR data folder")
     parser.add_argument("--external_data_folder", default=None, type=str, help="Folder containing an external test dataset.")
     parser.add_argument("--tb_folder_name", default='TB', type=str, help="The name of the TB folder in the internal and or external dataset.")
-    parser.add_argument("--model_name", type=str, choices=["truncated_b0", "truncated_b0_leaky", "truncated_b0_leaky2"], help="Custom model found in custom_lib.custom_models.")
+    parser.add_argument("--model_name", type=str, choices=["truncated_b0", "truncated_b0_act1", "truncated_b0_leaky", "truncated_b0_leaky2"], help="Custom model found in custom_lib.custom_models.")
     parser.add_argument("--pretrained", action="store_true", help="Use pretrained weights.")
     parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
-    # parser.add_argument("--weighted_loss", type=int, nargs=2, default=None, metavar=("num_tb", "num_non"))
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--rotate_angle", type=float, default=None, help="Rotation angle for data augmentation.")
     parser.add_argument("--horizontal_flip_prob", type=float, default=None, help="Probability of horizontal flip for data augmentation.")

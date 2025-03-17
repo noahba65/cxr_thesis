@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Loop through the model names (e.g., truncated_b0, truncated_b0_leaky)
-for MODEL_NAME in "truncated_b0"; do
-    # Loop through truncated layers (0 to 5)
-    for TRUNCATED_LAYERS in {2..7}; do
+for MODEL_NAME in "truncated_b0_act1"; do
+    # Loop through truncated layers (0 to 6)
+    for TRUNCATED_LAYERS in {1..2}; do
         
 
         echo "Running experiment with model=$MODEL_NAME, truncated_layers=$TRUNCATED_LAYERS"

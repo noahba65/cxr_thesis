@@ -1,2 +1,0 @@
-model_id,model,epochs,run_time,lr,image_size,rotate_angle,horizontal_flip_prob,gaussian_blur_k,gaussian_blur_s,normalize,seed,truncated_layers,batch_size,gflops,params,single_test_acc,single_test_loss,bootstrap_n,train_prop,val_prop
-truncated_b0_reduced_layers_3_2025-03-05_09-16,truncated_b0,20,25.910035181045533,0.001,224,10.0,0.5,9,3,True,42,3,32.0,4.272314624,65812.0,99.73958333333333,0.0030787173091084696,,0.8,0.1

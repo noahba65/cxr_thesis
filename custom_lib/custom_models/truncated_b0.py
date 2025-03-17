@@ -12,7 +12,7 @@ class truncated_b0(nn.Module):
         effnet = models.efficientnet_b0(weights=weights)
 
         # Truncate the EfficientNet backbone
-        layers = 7 - removed_layers
+        layers = 9 - removed_layers
         self.effnet_truncated = nn.Sequential(*list(effnet.features.children())[:layers])
 
         # Global average pooling

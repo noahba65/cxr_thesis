@@ -1,19 +1,19 @@
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision import datasets, transforms
 from torchvision.transforms import Compose, RandomRotation, RandomHorizontalFlip, Resize, CenterCrop, ToTensor, Normalize, GaussianBlur, ColorJitter
 from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader, ConcatDataset, random_split, Subset
+from torch.utils.data import DataLoader, ConcatDataset, Subset
+from sklearn.model_selection import train_test_split
 
 def data_transformation_pipeline(
     image_size,
     center_crop,
-    rotate_angle,
-    horizontal_flip_prob,
-    gaussian_blur_k,
-    gaussian_blur_s,
     normalize,
-    brightness_contrast_range,
+    rotate_angle = None,
+    horizontal_flip_prob = None,
+    gaussian_blur = None,
+    brightness_contrast_range = None,
     is_train=False
 ):
     """
@@ -42,9 +42,10 @@ def data_transformation_pipeline(
             transform_steps.append(RandomRotation(degrees=rotate_angle))
         if horizontal_flip_prob is not None:
             transform_steps.append(RandomHorizontalFlip(p=horizontal_flip_prob))
-        if gaussian_blur_k is not None:
-            transform_steps.append(GaussianBlur(kernel_size=gaussian_blur_k,
-                                                sigma=gaussian_blur_s))
+        if gaussian_blur is not None:
+            kernel_size, sigma = gaussian_blur 
+            transform_steps.append(GaussianBlur(kernel_size=kernel_size,
+                                                sigma=sigma))
         if brightness_contrast_range is not None:
             brightness_min, brightness_max, contrast_min, contrast_max = brightness_contrast_range
             transform_steps.append(ColorJitter(brightness=(brightness_min, brightness_max), contrast=(contrast_min, contrast_max)))
@@ -59,63 +60,57 @@ def data_transformation_pipeline(
     return Compose(transform_steps)
 
 
-def data_loader(data_dir, train_transform, val_transform, test_transform, seed, 
-                batch_size, train_prop, val_prop, num_workers=4):
+def data_loader(data_path, train_transform, val_transform, train_prop, batch_size, seed):
     """
-    Creates train, validation, and test DataLoaders from a dataset.
+    Function to load the train, validation, and test datasets with appropriate transformations
+    and return DataLoader objects for each.
 
-    Args:
-        data_dir (str): Path to the dataset directory.
-        train_transform (torchvision.transforms.Compose): Transformations to apply to training images.
-        val_transform (torchvision.transforms.Compose): Transformations to apply to validation images.
-        test_transform (torchvision.transforms.Compose): Transformations to apply to test images.
-        batch_size (int): Batch size for the DataLoader.
-        train_prop (float): Proportion of the dataset used for training.
-        val_prop (float): Proportion of the dataset used for validation.
-        num_workers (int): Number of subprocesses to use for data loading.
+    Parameters:
+    - data_path (str): Path to the dataset directory containing the images organized in subdirectories by class.
+    - train_transform (torchvision.transforms.Compose): Transformations to be applied to the training data (e.g., augmentation).
+    - val_transform (torchvision.transforms.Compose): Transformations to be applied to the validation and test data.
+    - train_prop (float): Proportion of the dataset to be used for training (e.g., 0.7 for 70% training data).
+    - batch_size (int): The batch size to be used in the DataLoader for loading data in mini-batches.
 
     Returns:
-        tuple: Train, validation, and test DataLoaders, and the number of classes.
+    - train_loader (DataLoader): DataLoader object for the training set.
+    - val_loader (DataLoader): DataLoader object for the validation set.
+    - test_loader (DataLoader): DataLoader object for the test set.
+
+    The DataLoader objects are created using `SubsetRandomSampler` based on the stratified splits
+    of the dataset to ensure balanced class distribution across train, validation, and test sets.
     """
 
-    # Validate proportions
-    assert train_prop + val_prop < 1, "The sum of train_prop and val_prop must be less than 1."
+    torch.manual_seed(seed)  # For PyTorch
 
-    # Load the dataset with a placeholder transform
-    data = ImageFolder(data_dir, transform=None)
-    data_length = len(data)
+    # Load full dataset without transform (we'll assign it later)
+    full_dataset = datasets.ImageFolder(root=data_path)
+    
+    # Create indices to represent all the samples in the dataset
+    num_samples = len(full_dataset)
+    indices = torch.arange(num_samples)
 
-    # Number of classes
-    num_classes = len(data.classes)
+    # Extract class labels for stratification to ensure balanced splits
+    class_labels = [full_dataset.targets[i] for i in indices]
 
-    # Define the sizes for the splits
-    train_size = int(train_prop * data_length)
-    val_size = int(val_prop * data_length)
-    test_size = data_length - train_size - val_size
+    # Split indices into train, validation, and test sets (stratified sampling)
+    # Train set will be of size `train_prop` (e.g., 0.7)
+    train_indices, temp_indices = train_test_split(indices, train_size=train_prop, random_state=seed, stratify=class_labels)
+    
+    # The remaining `temp_indices` are split into validation and test sets with 50% for each
+    val_indices, test_indices = train_test_split(temp_indices, train_size=0.5, random_state=seed, stratify=[class_labels[i] for i in temp_indices])
 
-    if train_size <= 0 or val_size <= 0 or test_size <= 0:
-        raise ValueError("Dataset is too small for the specified split proportions.")
+    # Create separate datasets with appropriate transformations for each set
+    train_dataset = datasets.ImageFolder(root=data_path, transform=train_transform)
+    val_dataset = datasets.ImageFolder(root=data_path, transform=val_transform)
+    test_dataset = datasets.ImageFolder(root=data_path, transform=val_transform)
 
-    # Set seed for reproducibility
-    torch.manual_seed(seed)
+    # Create DataLoaders using `SubsetRandomSampler`
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=SubsetRandomSampler(train_indices))
+    val_loader = DataLoader(val_dataset, batch_size=batch_size * 2, sampler=SubsetRandomSampler(val_indices))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size * 2, sampler=SubsetRandomSampler(test_indices))
 
-    # Split the dataset
-    trainset, valset, testset = random_split(data, [train_size, val_size, test_size])
+    # Print the sizes of each dataset
+    print(f"Train size {len(train_indices)}. Val size {len(val_indices)}. Test size {len(test_indices)}.")
 
-    # Apply specific transformations
-    trainset.dataset.transform = train_transform
-    valset.dataset.transform = val_transform
-    testset.dataset.transform = test_transform
-
-    # Create DataLoaders
-    train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True,
-                              drop_last=True)
-    val_loader = DataLoader(valset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True,
-                            drop_last=True)
-    test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True,
-                             drop_last=True)
-
-    # Log split sizes
-    print(f"Train size: {train_size}, Validation size: {val_size}, Test size: {test_size}")
-
-    return train_loader, val_loader, test_loader, num_classes
+    return train_loader, val_loader, test_loader

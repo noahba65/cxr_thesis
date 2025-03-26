@@ -1,95 +1,116 @@
 # Truncated EfficientNet for Tuberculosis Classification
 
-## Description
-This repository contains the implementation and analysis for my Master's thesis investigating truncated versions of EfficientNet-B0 for binary Tuberculosis (TB) classification in Chest X-Rays (CXRs). The project demonstrates that significant model size reductions (up to 13× smaller) can be achieved while maintaining diagnostic accuracy that meets WHO guidelines.
+## 📖 Description
 
-Key features:
-- Systematic truncation of EfficientNet-B0 architecture
-- Evaluation on both internal (Kaggle) and external (Mendeley) datasets
-- Performance analysis including bootstrap confidence intervals
-- Comparative study against state-of-the-art models
+This repository contains the implementation and analysis for my Master's thesis, which investigates truncated versions of EfficientNet-B0 for binary classification of Tuberculosis (TB) from chest X-rays (CXRs).
 
-## Key Findings
-- Achieved **100% accuracy** on internal test set with truncated models
-- External validation showed **98.71% sensitivity** and **98.97% specificity** (B0(-3))
-- Models **13-63× more efficient** than comparable approaches
-- Demonstrated potential for clinical deployment in resource-constrained settings
+The core finding: **you can remove up to 3 blocks from EfficientNet-B0 and still achieve performance that matches—or even exceeds—the full model**, while slashing parameter count by 13×. This has significant implications for deploying TB screening tools in resource-limited settings.
 
-## Repository Structure
+Key contributions:
+- 🔬 Systematic truncation of EfficientNet-B0 (from -1 to -4 blocks)
+- 📊 Rigorous evaluation on internal (Kaggle) and external (Mendeley) datasets
+- 📈 Bootstrap analysis with 95% confidence intervals
+- ⚖️ Trade-off analysis between accuracy and model efficiency
+
+---
+
+## 🏆 Key Findings
+
+- ✅ **100% accuracy** on internal Kaggle test set with all models
+- 🌍 **97.4% external accuracy** with B0(-3), including:
+  - Sensitivity: **98.96%**
+  - Specificity: **95.68%**
+- ⚡ B0(-3) uses only **308K parameters**, compared to **4.1M** in the full B0
+- 📉 63× smaller than prior DenseNet-201–based approaches
+- 🚀 Real-world potential for clinical use in low-resource settings
+
+---
+
+## 📁 Repository Structure
+
 ```
-cxr_thesis/
+📁 cxr_thesis/
 ├── custom_lib/
-│   ├── __init__.py
 │   ├── data_prep.py
 │   ├── eval_tools.py
 │   └── custom_models/
-│       ├── __init__.py
-│       ├── basic_nn.py
-│       ├── spatial_sep.py
-│       ├── truncated_b0.py
-│       ├── truncated_b0_leaky.py
-│       ├── truncated_b0_leaky2.py
-│       └── truncated_b0_act1.py
+│       ├── truncated_b0.py, truncated_b0_leaky.py, etc.
 │
-├── results/
-├── external_bootstrap_results/
-├── results_figs.ipynb
-├── explore_model.ipynb
-├── freeze/
-├── run_bootstraps.ipynb
-├── run_experiments.sh
-├── run_model.ipynb
-├── run_model.py
-├── plots_presentation.pptx Results of results_figs.ipynb in a powerpoint
-├── paper_figs/ # Folder for figures used in my thesis
-├── requirements.txt # Required packages and versions
-├── myenv/  # (virtual environment - usually excluded from version control)
+├── run_model.py                  # Training script (full + truncated models)
+├── run_model.ipynb              # Jupyter training variant
+├── run_experiments.sh           # Batch experiment runner
+├── run_bootstraps.ipynb         # Bootstrap CI evaluation
+├── explore_model.ipynb          # Early exploration / architecture tests
+├── replot_training_loss.ipynb   # Plot regeneration for report
+├── results/                     # Saved metrics, checkpoints
+├── external_bootstrap_results/  # External test bootstrap metrics
+├── paper_figs/                  # Final figure exports for thesis
+├── results_figs.ipynb           # Plot generation scripts
+├── plots_presentation.pptx      # Presentation slides
+├── requirements.txt             # Dependency list
+└── thesis.pdf                   # Final paper
 ```
 
-## Requirements
+---
+
+## 🛠️ Requirements
+
 - Python 3.8+
-- PyTorch 1.10+
+- PyTorch ≥ 1.10
 - torchvision
 - scikit-learn
-- pandas
-- matplotlib
-- seaborn
+- pandas, matplotlib, seaborn
 
-Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
-1. **Data Preparation**:
-   - Download datasets from [Kaggle](https://www.kaggle.com/datasets/tawsifurrahman/tuberculosis-tb-chest-xray-dataset) and [Mendeley](https://data.mendeley.com/datasets/jctsfj2sfn/1)
-   - Place in `data/` directory following the preprocessing scripts
+---
 
-2. **Training**:
+## 🚀 Usage
+
+### 1. Prepare Data
+Download and organize the datasets:
+- [Kaggle TB Dataset](https://www.kaggle.com/datasets/tawsifurrahman/tuberculosis-tb-chest-xray-dataset)
+- [Mendeley Pakistan TB Dataset](https://data.mendeley.com/datasets/jctsfj2sfn/1)
+
+Place the images into a `data/` directory using the format expected by `data_prep.py`.
+
+---
+
+### 2. Train Model
 ```bash
-python src/training.py --config configs/b0_minus_3.yaml
+python run_model.py --model b0_minus_3
 ```
 
-3. **Evaluation**:
+### 3. Evaluate on External Data
 ```bash
-python src/evaluation.py --model_path models/b0_minus_3.pt --dataset external
+python run_model.py --model b0_minus_3 --eval_only --external
 ```
 
-4. **Visualization**:
+### 4. Bootstrap Confidence Intervals
 ```bash
-python src/visualization.py --model_path models/b0_minus_3.pt
+jupyter notebook run_bootstraps.ipynb
 ```
 
-## Results Summary
-| Model | Params | Test Acc | External Acc | Sensitivity | Specificity |
-|-------|--------|----------|--------------|-------------|-------------|
-| B0    | 4.01M  | 100%     | 97.26%       | 0.9872      | 0.9568      |
-| B0(-3)| 308K   | 100%     | 97.38%       | 0.9896      | 0.9573      |
+---
 
-## References
-1. Rahman et al. (2020) - Kaggle TB dataset
-2. Ke et al. (2021) - Model truncation study
-3. WHO TB diagnostic guidelines
+## 📊 Results Summary
 
-## License
-MIT License - See [LICENSE](LICENSE) for details
+| Model     | Params | Internal Acc | External Acc | Sensitivity | Specificity |
+|-----------|--------|--------------|--------------|-------------|-------------|
+| B0(-0)    | 4.1M   | 100%         | 97.26%       | 98.72%      | 95.68%      |
+| B0(-3) 🔥 | 308K   | 100%         | 97.38%       | 98.96%      | 95.68%      |
+
+> 🔥 B0(-3) is 13× smaller than B0(-0), with overlapping performance and better efficiency.
+
+---
+
+## 📚 References
+
+1. Rahman et al. (2020) — Kaggle TB dataset  
+2. Ke et al. (2021) — Model truncation and bootstrap evaluation  
+3. WHO (2021) — TB triage standards and diagnostic guidelines  
+
+---
+

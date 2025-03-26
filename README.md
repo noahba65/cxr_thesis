@@ -173,13 +173,5 @@ jupyter notebook run_bootstraps.ipynb
 
 > 🔥 B0(-3) is 13× smaller than B0(-0), with overlapping performance and better efficiency.
 
----
 
-## 📚 References
-
-1. Rahman et al. (2020) — Kaggle TB dataset  
-2. Ke et al. (2021) — Model truncation and bootstrap evaluation  
-3. WHO (2021) — TB triage standards and diagnostic guidelines  
-
----
 

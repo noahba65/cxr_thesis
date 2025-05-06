@@ -65,7 +65,7 @@ The **B0(-3)** model removes blocks **6, 7, and 8**, reducing complexity while p
 
 ---
 
-### ✅ Core Insight
+### Core Insight
 
 Despite its simplicity, **B0(-3)** generalizes extremely well, achieving:
 - **97.38% external test accuracy**

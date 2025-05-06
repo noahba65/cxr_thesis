@@ -1,6 +1,6 @@
 # Truncated EfficientNet for Tuberculosis Classification
 
-## 📖 Description
+## Description
 
 This repository contains the full implementation and experimental analysis from my Master's thesis, which investigates **truncated versions of EfficientNet-B0** for binary classification of Tuberculosis (TB) in Chest X-Rays (CXRs).
 
@@ -8,11 +8,11 @@ The goal: reduce model size by strategically removing blocks from EfficientNet-B
 
 ---
 
-### 🏗️ Methodology Overview
+### Methodology Overview
 
 The study evaluates five models: the full EfficientNet-B0 and four truncated variants (removing 1 to 4 blocks). The core idea is to **systematically remove later-stage MBConv blocks**, replacing them with a lightweight `Conv1x1` layer to preserve feature flow.
 
-#### 🔹 Full EfficientNet-B0 Architecture
+#### Full EfficientNet-B0 Architecture
 
 The baseline model includes 10 blocks, starting with a `Conv3x3` stem, followed by MBConv1 and MBConv6 layers, and ending with a high-capacity `Conv1x1` and fully connected classifier.
 
@@ -31,7 +31,7 @@ The baseline model includes 10 blocks, starting with a `Conv3x3` stem, followed 
 
 ---
 
-#### 🔹 Proposed B0(-3) Truncated Architecture
+#### Proposed B0(-3) Truncated Architecture
 
 The **B0(-3)** model removes blocks **6, 7, and 8**, reducing complexity while preserving core feature pathways. A new untrained `Conv1x1` block with 112 output channels bridges the remaining network to the classifier.
 
@@ -49,7 +49,7 @@ The **B0(-3)** model removes blocks **6, 7, and 8**, reducing complexity while p
 
 ---
 
-### 🧪 Experimental Setup
+###  Experimental Setup
 
 - **Datasets**: 
   - Training: Balanced Kaggle dataset (3,500 TB + 3,500 Normal CXRs)
@@ -76,29 +76,29 @@ These results meet **WHO guidelines for TB diagnostics** and outperform some exi
 
 
 Key contributions:
-- 🔬 Systematic truncation of EfficientNet-B0 (from -1 to -4 blocks)
-- 📊 Rigorous evaluation on internal (Kaggle) and external (Mendeley) datasets
-- 📈 Bootstrap analysis with 95% confidence intervals
-- ⚖️ Trade-off analysis between accuracy and model efficiency
+- Systematic truncation of EfficientNet-B0 (from -1 to -4 blocks)
+- Rigorous evaluation on internal (Kaggle) and external (Mendeley) datasets
+- Bootstrap analysis with 95% confidence intervals
+- Trade-off analysis between accuracy and model efficiency
 
 ---
 
-## 🏆 Key Findings
+## Key Findings
 
-- ✅ **100% accuracy** on internal Kaggle test set with all models
-- 🌍 **97.4% external accuracy** with B0(-3), including:
+- **100% accuracy** on internal Kaggle test set with all models
+- **97.4% external accuracy** with B0(-3), including:
   - Sensitivity: **98.96%**
   - Specificity: **95.68%**
-- ⚡ B0(-3) uses only **308K parameters**, compared to **4.1M** in the full B0
-- 📉 63× smaller than prior DenseNet-201–based approaches
-- 🚀 Real-world potential for clinical use in low-resource settings
+- B0(-3) uses only **308K parameters**, compared to **4.1M** in the full B0
+- 63× smaller than prior DenseNet-201–based approaches
+- Real-world potential for clinical use in low-resource settings
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
-📁 cxr_thesis/
+cxr_thesis/
 ├── custom_lib/
 │   ├── data_prep.py
 │   ├── eval_tools.py
@@ -136,7 +136,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### 1. Prepare Data
 Download and organize the datasets:
@@ -164,14 +164,14 @@ jupyter notebook run_bootstraps.ipynb
 
 ---
 
-## 📊 Results Summary
+## Results Summary
 
 | Model     | Params | Internal Acc | External Acc | Sensitivity | Specificity |
 |-----------|--------|--------------|--------------|-------------|-------------|
 | B0(-0)    | 4.1M   | 100%         | 97.26%       | 98.72%      | 95.68%      |
 | B0(-3) 🔥 | 308K   | 100%         | 97.38%       | 98.96%      | 95.68%      |
 
-> 🔥 B0(-3) is 13× smaller than B0(-0), with overlapping performance and better efficiency.
+> B0(-3) is 13× smaller than B0(-0), with overlapping performance and better efficiency.
 
 
 

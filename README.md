@@ -169,7 +169,7 @@ jupyter notebook run_bootstraps.ipynb
 | Model     | Params | Internal Acc | External Acc | Sensitivity | Specificity |
 |-----------|--------|--------------|--------------|-------------|-------------|
 | B0(-0)    | 4.1M   | 100%         | 97.26%       | 98.72%      | 95.68%      |
-| B0(-3) 🔥 | 308K   | 100%         | 97.38%       | 98.96%      | 95.68%      |
+| B0(-3)    | 308K   | 100%         | 97.38%       | 98.96%      | 95.68%      |
 
 > B0(-3) is 13× smaller than B0(-0), with overlapping performance and better efficiency.
 
